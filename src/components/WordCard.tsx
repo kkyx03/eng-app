@@ -1,23 +1,23 @@
-import React from 'react';
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  Dimensions,
-} from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, Animated, Dimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Word } from '../types';
 import { levelColors } from '../constants/theme';
+import { Card } from './Card';
 
 interface WordCardProps {
   word: Word;
-  onPress?: () => void;
-  onBookmarkPress?: () => void;
+  onPress?: (word: Word) => void;
+  onBookmarkPress?: (wordId: string) => void;
   showBookmark?: boolean;
   showLevel?: boolean;
   showExample?: boolean;
+  showMeaning?: boolean;
   compact?: boolean;
+  isBookmarked?: boolean;
+  variant?: 'default' | 'quiz' | 'result';
+  isCorrect?: boolean;
+  showAnswer?: boolean;
 }
 
 const { width } = Dimensions.get('window');
@@ -29,8 +29,44 @@ export const WordCard: React.FC<WordCardProps> = ({
   showBookmark = true,
   showLevel = true,
   showExample = true,
+  showMeaning = true,
   compact = false,
+  isBookmarked = false,
+  variant = 'default',
+  isCorrect,
+  showAnswer = false,
 }) => {
+  const [scaleValue] = useState(new Animated.Value(1));
+  const [showDetails, setShowDetails] = useState(false);
+
+  const handlePress = () => {
+    if (onPress) {
+      // Add press animation
+      Animated.sequence([
+        Animated.timing(scaleValue, {
+          toValue: 0.95,
+          duration: 100,
+          useNativeDriver: true,
+        }),
+        Animated.timing(scaleValue, {
+          toValue: 1,
+          duration: 100,
+          useNativeDriver: true,
+        }),
+      ]).start();
+
+      onPress(word);
+    } else {
+      setShowDetails(!showDetails);
+    }
+  };
+
+  const handleBookmarkPress = () => {
+    if (onBookmarkPress) {
+      onBookmarkPress(word.id);
+    }
+  };
+
   const getLevelText = (level: string) => {
     switch (level) {
       case 'easy': return '쉬움';
@@ -40,159 +76,247 @@ export const WordCard: React.FC<WordCardProps> = ({
     }
   };
 
+  const getVariantStyle = () => {
+    switch (variant) {
+      case 'quiz':
+        return styles.quizCard;
+      case 'result':
+        return isCorrect ? styles.correctCard : styles.incorrectCard;
+      default:
+        return styles.defaultCard;
+    }
+  };
+
+  const getVariantTextStyle = () => {
+    switch (variant) {
+      case 'result':
+        return isCorrect ? styles.correctText : styles.incorrectText;
+      default:
+        return styles.defaultText;
+    }
+  };
+
   return (
-    <TouchableOpacity
-      style={[styles.container, compact && styles.compactContainer]}
-      onPress={onPress}
-      activeOpacity={0.7}
-    >
-      <View style={styles.header}>
-        <View style={styles.wordInfo}>
-          <Text style={styles.english}>{word.english}</Text>
-          <Text style={styles.korean}>{word.korean}</Text>
-        </View>
-        
-        <View style={styles.actions}>
-          {showLevel && (
-            <View style={[styles.levelBadge, { backgroundColor: levelColors[word.level] }]}>
-              <Text style={styles.levelText}>{getLevelText(word.level)}</Text>
+    <Animated.View style={{ transform: [{ scale: scaleValue }] }}>
+      <Card variant="default" style={[styles.container, getVariantStyle()] as any}>
+        <TouchableOpacity
+          style={styles.content}
+          onPress={handlePress}
+          activeOpacity={0.7}
+        >
+          <View style={styles.header}>
+            <View style={styles.wordInfo}>
+              <Text style={[styles.english, getVariantTextStyle()]}>
+                {word.english}
+              </Text>
+              {showAnswer && (
+                <Text style={[styles.korean, getVariantTextStyle()]}>
+                  {word.korean}
+                </Text>
+              )}
             </View>
-          )}
-          
-          {showBookmark && (
-            <TouchableOpacity
-              style={styles.bookmarkButton}
-              onPress={onBookmarkPress}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            >
-              <Ionicons
-                name={word.isBookmarked ? 'bookmark' : 'bookmark-outline'}
-                size={20}
-                color={word.isBookmarked ? '#FFD700' : '#8E8E93'}
-              />
-            </TouchableOpacity>
-          )}
-        </View>
-      </View>
+            
+            <View style={styles.actions}>
+              {showLevel && (
+                <View style={[styles.levelBadge, { backgroundColor: levelColors[word.level] }]}>
+                  <Text style={styles.levelText}>
+                    {getLevelText(word.level)}
+                  </Text>
+                </View>
+              )}
+              
+              {showBookmark && onBookmarkPress && (
+                <TouchableOpacity
+                  style={styles.bookmarkButton}
+                  onPress={handleBookmarkPress}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                >
+                  <Ionicons
+                    name={isBookmarked ? 'bookmark' : 'bookmark-outline'}
+                    size={20}
+                    color={isBookmarked ? '#FF9500' : '#8E8E93'}
+                  />
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
 
-      {showExample && !compact && (
-        <View style={styles.exampleContainer}>
-          <Text style={styles.exampleLabel}>예문:</Text>
-          <Text style={styles.example}>{word.example}</Text>
-          <Text style={styles.meaning}>{word.meaning}</Text>
-        </View>
-      )}
-
-      {word.studyCount && word.studyCount > 0 && (
-        <View style={styles.studyInfo}>
-          <Ionicons name="time-outline" size={14} color="#8E8E93" />
-          <Text style={styles.studyCount}>학습 {word.studyCount}회</Text>
-          {word.lastStudied && (
-            <Text style={styles.lastStudied}>
-              {new Date(word.lastStudied).toLocaleDateString()}
+          {showMeaning && word.meaning && (
+            <Text style={[styles.meaning, getVariantTextStyle()]}>
+              {word.meaning}
             </Text>
           )}
-        </View>
-      )}
-    </TouchableOpacity>
+
+          {showExample && word.example && (
+            <Text style={[styles.example, getVariantTextStyle()]}>
+              "{word.example}"
+            </Text>
+          )}
+
+          {variant === 'result' && (
+            <View style={styles.resultIndicator}>
+              <Ionicons
+                name={isCorrect ? 'checkmark-circle' : 'close-circle'}
+                size={24}
+                color={isCorrect ? '#34C759' : '#FF3B30'}
+              />
+              <Text style={[styles.resultText, isCorrect ? styles.correctText : styles.incorrectText]}>
+                {isCorrect ? '정답' : '오답'}
+              </Text>
+            </View>
+          )}
+
+          {!compact && showDetails && (
+            <View style={styles.details}>
+              <Text style={styles.detailText}>
+                학습 횟수: {word.studyCount || 0}회
+              </Text>
+              {word.lastStudied && (
+                <Text style={styles.detailText}>
+                  마지막 학습: {new Date(word.lastStudied).toLocaleDateString()}
+                </Text>
+              )}
+            </View>
+          )}
+        </TouchableOpacity>
+      </Card>
+    </Animated.View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 16,
-    marginVertical: 6,
+    marginBottom: 12,
     marginHorizontal: 16,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 5,
   },
-  compactContainer: {
-    padding: 12,
-    marginVertical: 4,
+  
+  content: {
+    flex: 1,
   },
+  
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
+    marginBottom: 8,
   },
+  
   wordInfo: {
     flex: 1,
     marginRight: 12,
   },
+  
   english: {
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: '700',
     color: '#000000',
     marginBottom: 4,
   },
+  
   korean: {
     fontSize: 16,
-    color: '#666666',
-    fontWeight: '500',
+    fontWeight: '600',
+    color: '#007AFF',
+    marginBottom: 4,
   },
+  
+  meaning: {
+    fontSize: 14,
+    color: '#666666',
+    marginBottom: 6,
+    lineHeight: 20,
+  },
+  
+  example: {
+    fontSize: 13,
+    color: '#8E8E93',
+    fontStyle: 'italic',
+    lineHeight: 18,
+  },
+  
   actions: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
   },
+  
   levelBadge: {
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 12,
+    marginRight: 8,
   },
+  
   levelText: {
     fontSize: 12,
     fontWeight: '600',
     color: '#FFFFFF',
   },
+  
   bookmarkButton: {
     padding: 4,
   },
-  exampleContainer: {
-    marginTop: 12,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#F0F0F0',
-  },
-  exampleLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#666666',
-    marginBottom: 4,
-  },
-  example: {
-    fontSize: 14,
-    color: '#333333',
-    fontStyle: 'italic',
-    marginBottom: 4,
-    lineHeight: 20,
-  },
-  meaning: {
-    fontSize: 14,
-    color: '#666666',
-    lineHeight: 20,
-  },
-  studyInfo: {
+  
+  resultIndicator: {
     flexDirection: 'row',
     alignItems: 'center',
     marginTop: 8,
-    gap: 6,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#F2F2F7',
   },
-  studyCount: {
+  
+  resultText: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginLeft: 8,
+  },
+  
+  details: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#F2F2F7',
+  },
+  
+  detailText: {
     fontSize: 12,
     color: '#8E8E93',
+    marginBottom: 4,
   },
-  lastStudied: {
-    fontSize: 12,
-    color: '#8E8E93',
-    marginLeft: 'auto',
+  
+  // Variant styles
+  defaultCard: {
+    backgroundColor: '#FFFFFF',
+  },
+  
+  quizCard: {
+    backgroundColor: '#F8F9FA',
+    borderWidth: 2,
+    borderColor: '#E9ECEF',
+  },
+  
+  correctCard: {
+    backgroundColor: '#F0FFF4',
+    borderWidth: 2,
+    borderColor: '#34C759',
+  },
+  
+  incorrectCard: {
+    backgroundColor: '#FFF5F5',
+    borderWidth: 2,
+    borderColor: '#FF3B30',
+  },
+  
+  // Text variants
+  defaultText: {
+    color: '#000000',
+  },
+  
+  correctText: {
+    color: '#34C759',
+  },
+  
+  incorrectText: {
+    color: '#FF3B30',
   },
 }); 

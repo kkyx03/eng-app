@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,9 +9,8 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Word, FilterOptions } from '../types';
-import { words } from '../db/words';
-import { StorageManager, storageUtils } from '../utils/storage';
+import { Word } from '../types';
+import { useAppStore } from '../store/useAppStore';
 import { WordCard } from '../components/WordCard';
 import { SearchBar } from '../components/SearchBar';
 import { FilterChips } from '../components/FilterChips';
@@ -19,113 +18,26 @@ import { levelColors } from '../constants/theme';
 import { WordListScreenProps } from '../types/navigation';
 
 export default function WordListScreen({ navigation }: WordListScreenProps) {
-  const [allWords, setAllWords] = useState<Word[]>([]);
-  const [filteredWords, setFilteredWords] = useState<Word[]>([]);
-  const [searchText, setSearchText] = useState('');
-  const [selectedLevel, setSelectedLevel] = useState<'easy' | 'medium' | 'hard' | 'all'>('all');
-  const [showBookmarkedOnly, setShowBookmarkedOnly] = useState(false);
-  const [bookmarkedIds, setBookmarkedIds] = useState<string[]>([]);
-  const [sortBy, setSortBy] = useState<'english' | 'korean' | 'level' | 'lastStudied'>('english');
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+  const {
+    loading,
+    error,
+    filterOptions,
+    searchQuery,
+    setSearchQuery,
+    setFilterOptions,
+    getFilteredWords,
+    toggleBookmark,
+    bookmarkedIds,
+  } = useAppStore();
 
-  useEffect(() => {
-    loadData();
+  const filteredWords = getFilteredWords();
+
+    useEffect(() => {
+    // Data is automatically loaded by the store
   }, []);
 
-  useEffect(() => {
-    applyFilters();
-  }, [allWords, searchText, selectedLevel, showBookmarkedOnly, sortBy, sortOrder]);
-
-  const loadData = async () => {
-    try {
-      // 저장된 단어 데이터 로드 (없으면 기본 데이터 사용)
-      let savedWords = await StorageManager.loadWords();
-      if (savedWords.length === 0) {
-        savedWords = words;
-        await StorageManager.saveWords(words);
-      }
-      setAllWords(savedWords);
-
-      // 북마크된 단어 ID 로드
-      const bookmarks = await StorageManager.loadBookmarks();
-      setBookmarkedIds(bookmarks);
-    } catch (error) {
-      console.error('데이터 로드 실패:', error);
-      setAllWords(words);
-    }
-  };
-
-  const applyFilters = () => {
-    let filtered = [...allWords];
-
-    // 검색 필터
-    if (searchText.trim()) {
-      const searchLower = searchText.toLowerCase();
-      filtered = filtered.filter(
-        word =>
-          word.english.toLowerCase().includes(searchLower) ||
-          word.korean.includes(searchText) ||
-          word.example.toLowerCase().includes(searchLower)
-      );
-    }
-
-    // 난이도 필터
-    if (selectedLevel !== 'all') {
-      filtered = filtered.filter(word => word.level === selectedLevel);
-    }
-
-    // 북마크 필터
-    if (showBookmarkedOnly) {
-      filtered = filtered.filter(word => bookmarkedIds.includes(word.id));
-    }
-
-    // 정렬
-    filtered.sort((a, b) => {
-      let comparison = 0;
-      
-      switch (sortBy) {
-        case 'english':
-          comparison = a.english.localeCompare(b.english);
-          break;
-        case 'korean':
-          comparison = a.korean.localeCompare(b.korean);
-          break;
-        case 'level':
-          const levelOrder = { easy: 1, medium: 2, hard: 3 };
-          comparison = levelOrder[a.level] - levelOrder[b.level];
-          break;
-        case 'lastStudied':
-          const aDate = a.lastStudied ? new Date(a.lastStudied).getTime() : 0;
-          const bDate = b.lastStudied ? new Date(b.lastStudied).getTime() : 0;
-          comparison = aDate - bDate;
-          break;
-      }
-
-      return sortOrder === 'asc' ? comparison : -comparison;
-    });
-
-    setFilteredWords(filtered);
-  };
-
   const handleBookmarkToggle = async (wordId: string) => {
-    try {
-      await storageUtils.toggleBookmark(wordId);
-      
-      // 북마크 목록 업데이트
-      const newBookmarks = bookmarkedIds.includes(wordId)
-        ? bookmarkedIds.filter(id => id !== wordId)
-        : [...bookmarkedIds, wordId];
-      setBookmarkedIds(newBookmarks);
-
-      // 단어 데이터 업데이트
-      const updatedWords = allWords.map(word =>
-        word.id === wordId ? { ...word, isBookmarked: !word.isBookmarked } : word
-      );
-      setAllWords(updatedWords);
-    } catch (error) {
-      console.error('북마크 토글 실패:', error);
-      Alert.alert('오류', '북마크 설정에 실패했습니다.');
-    }
+    await toggleBookmark(wordId);
   };
 
   const handleWordPress = (word: Word) => {
@@ -150,26 +62,28 @@ export default function WordListScreen({ navigation }: WordListScreenProps) {
         { text: '취소', style: 'cancel' },
         {
           text: '영어 단어',
-          onPress: () => setSortBy('english'),
+          onPress: () => setFilterOptions({ sortBy: 'english' }),
         },
         {
           text: '한국어 뜻',
-          onPress: () => setSortBy('korean'),
+          onPress: () => setFilterOptions({ sortBy: 'korean' }),
         },
         {
           text: '난이도',
-          onPress: () => setSortBy('level'),
+          onPress: () => setFilterOptions({ sortBy: 'level' }),
         },
         {
           text: '최근 학습',
-          onPress: () => setSortBy('lastStudied'),
+          onPress: () => setFilterOptions({ sortBy: 'lastStudied' }),
         },
       ]
     );
   };
 
   const toggleSortOrder = () => {
-    setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+    setFilterOptions({ 
+      sortOrder: filterOptions.sortOrder === 'asc' ? 'desc' : 'asc' 
+    });
   };
 
   const renderWordItem = ({ item }: { item: Word }) => (
@@ -180,6 +94,7 @@ export default function WordListScreen({ navigation }: WordListScreenProps) {
       showBookmark={true}
       showLevel={true}
       showExample={false}
+      isBookmarked={bookmarkedIds.includes(item.id)}
     />
   );
 
@@ -193,7 +108,7 @@ export default function WordListScreen({ navigation }: WordListScreenProps) {
           </TouchableOpacity>
           <TouchableOpacity onPress={toggleSortOrder} style={styles.sortButton}>
             <Ionicons
-              name={sortOrder === 'asc' ? 'arrow-up' : 'arrow-down'}
+              name={filterOptions.sortOrder === 'asc' ? 'arrow-up' : 'arrow-down'}
               size={20}
               color="#8E8E93"
             />
@@ -202,16 +117,16 @@ export default function WordListScreen({ navigation }: WordListScreenProps) {
       </View>
 
       <SearchBar
-        value={searchText}
-        onChangeText={setSearchText}
+        value={searchQuery}
+        onChangeText={setSearchQuery}
         placeholder="단어, 뜻, 예문으로 검색..."
       />
 
       <FilterChips
-        selectedLevel={selectedLevel}
-        onLevelChange={setSelectedLevel}
-        showBookmarkedOnly={showBookmarkedOnly}
-        onBookmarkedToggle={() => setShowBookmarkedOnly(!showBookmarkedOnly)}
+        selectedLevel={filterOptions.level}
+        onLevelChange={(level) => setFilterOptions({ level })}
+        showBookmarkedOnly={filterOptions.showBookmarkedOnly}
+        onBookmarkedToggle={(show) => setFilterOptions({ showBookmarkedOnly: show })}
       />
 
       <View style={styles.statsBar}>

@@ -1,50 +1,60 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
-  TouchableOpacity,
   Alert,
+  RefreshControl,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Word, StudyStats } from '../types';
-import { words, wordStats } from '../db/words';
-import { StorageManager, storageUtils } from '../utils/storage';
-import { levelColors } from '../constants/theme';
+import { useAppStore } from '../store/useAppStore';
 import { HomeScreenProps } from '../types/navigation';
+import { Card } from '../components/Card';
+import { Button } from '../components/Button';
+import { WordCard } from '../components/WordCard';
+import { levelColors } from '../constants/theme';
 
 export default function HomeScreen({ navigation }: HomeScreenProps) {
-  const [studyStats, setStudyStats] = useState<StudyStats | null>(null);
-  const [bookmarkedWords, setBookmarkedWords] = useState<Word[]>([]);
-  const [recentWords, setRecentWords] = useState<Word[]>([]);
+  const {
+    studyStats,
+    loading,
+    error,
+    loadData,
+    clearAllData,
+    getBookmarkedWords,
+    getWrongAnswerWords,
+    getWordOfTheDay,
+    getStudyProgress,
+  } = useAppStore();
+
+  const bookmarkedWords = getBookmarkedWords();
+  const wrongAnswerWords = getWrongAnswerWords();
+  const wordOfTheDay = getWordOfTheDay();
+  const studyProgress = getStudyProgress();
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [loadData]);
 
-  const loadData = async () => {
-    try {
-      // 학습 통계 로드
-      const stats = await StorageManager.loadStudyStats();
-      setStudyStats(stats);
+  const handleRefresh = () => {
+    loadData();
+  };
 
-      // 북마크된 단어 로드
-      const bookmarks = await StorageManager.loadBookmarks();
-      const bookmarked = words.filter(word => bookmarks.includes(word.id));
-      setBookmarkedWords(bookmarked.slice(0, 5)); // 최대 5개만 표시
-
-      // 최근 학습한 단어 로드
-      const allWords = await StorageManager.loadWords();
-      const recent = allWords
-        .filter(word => word.lastStudied)
-        .sort((a, b) => new Date(b.lastStudied!).getTime() - new Date(a.lastStudied!).getTime())
-        .slice(0, 5);
-      setRecentWords(recent);
-    } catch (error) {
-      console.error('데이터 로드 실패:', error);
-    }
+  const handleClearData = () => {
+    Alert.alert(
+      '데이터 초기화',
+      '모든 학습 데이터를 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.',
+      [
+        { text: '취소', style: 'cancel' },
+        {
+          text: '삭제',
+          style: 'destructive',
+          onPress: clearAllData,
+        },
+      ]
+    );
   };
 
   const getAccuracy = () => {
@@ -61,158 +71,191 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
     }
   };
 
-  const handleStartQuiz = () => {
-    navigation.navigate('Quiz');
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return '좋은 아침입니다!';
+    if (hour < 18) return '좋은 오후입니다!';
+    return '좋은 저녁입니다!';
   };
 
-  const handleViewAllWords = () => {
-    navigation.navigate('WordList');
-  };
-
-  const handleClearData = () => {
-    Alert.alert(
-      '데이터 초기화',
-      '모든 학습 데이터를 삭제하시겠습니까?',
-      [
-        { text: '취소', style: 'cancel' },
-        {
-          text: '삭제',
-          style: 'destructive',
-          onPress: async () => {
-            await StorageManager.clearAllData();
-            loadData();
-          },
-        },
-      ]
+  if (error) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.errorContainer}>
+          <Ionicons name="alert-circle-outline" size={64} color="#FF3B30" />
+          <Text style={styles.errorTitle}>오류가 발생했습니다</Text>
+          <Text style={styles.errorMessage}>{error}</Text>
+          <Button title="다시 시도" onPress={loadData} icon="refresh" />
+        </View>
+      </SafeAreaView>
     );
-  };
+  }
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView showsVerticalScrollIndicator={false}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={loading} onRefresh={handleRefresh} />
+        }
+      >
         {/* 헤더 */}
         <View style={styles.header}>
-          <Text style={styles.title}>영어 단어장</Text>
-          <TouchableOpacity onPress={handleClearData} style={styles.settingsButton}>
-            <Ionicons name="settings-outline" size={24} color="#8E8E93" />
-          </TouchableOpacity>
+          <View>
+            <Text style={styles.greeting}>{getGreeting()}</Text>
+            <Text style={styles.title}>영어 단어장</Text>
+          </View>
+          <Button
+            title=""
+            onPress={handleClearData}
+            variant="ghost"
+            icon="settings-outline"
+            style={styles.settingsButton}
+          />
         </View>
 
-        {/* 학습 통계 카드 */}
-        <View style={styles.statsCard}>
-          <Text style={styles.statsTitle}>학습 통계</Text>
+        {/* 오늘의 단어 */}
+        {wordOfTheDay && (
+          <Card variant="elevated" style={styles.wordOfTheDayCard}>
+            <View style={styles.wordOfTheDayHeader}>
+              <Ionicons name="star" size={24} color="#FFD700" />
+              <Text style={styles.wordOfTheDayTitle}>오늘의 단어</Text>
+            </View>
+            <WordCard
+              word={wordOfTheDay}
+              showBookmark={false}
+              showExample={false}
+              compact={true}
+            />
+          </Card>
+        )}
+
+        {/* 학습 진척도 */}
+        <Card variant="default" style={styles.progressCard}>
+          <Text style={styles.sectionTitle}>학습 진척도</Text>
+          <View style={styles.progressBar}>
+            <View 
+              style={[
+                styles.progressFill, 
+                { width: `${studyProgress.percentage}%` }
+              ]} 
+            />
+          </View>
+          <Text style={styles.progressText}>
+            {studyProgress.studied} / {studyProgress.total} 단어 학습 완료 ({studyProgress.percentage}%)
+          </Text>
+        </Card>
+
+        {/* 학습 통계 */}
+        <Card variant="default" style={styles.statsCard}>
+          <Text style={styles.sectionTitle}>학습 통계</Text>
           <View style={styles.statsGrid}>
             <View style={styles.statItem}>
+              <Ionicons name="help-circle-outline" size={24} color="#007AFF" />
               <Text style={styles.statNumber}>{studyStats?.totalAnswers || 0}</Text>
               <Text style={styles.statLabel}>총 문제</Text>
             </View>
             <View style={styles.statItem}>
+              <Ionicons name="checkmark-circle-outline" size={24} color="#34C759" />
               <Text style={styles.statNumber}>{getAccuracy()}%</Text>
               <Text style={styles.statLabel}>정답률</Text>
             </View>
             <View style={styles.statItem}>
+              <Ionicons name="flame-outline" size={24} color="#FF9500" />
               <Text style={styles.statNumber}>{studyStats?.streakDays || 0}</Text>
               <Text style={styles.statLabel}>연속 학습일</Text>
             </View>
           </View>
-        </View>
+        </Card>
 
-        {/* 난이도별 통계 */}
-        <View style={styles.levelStatsCard}>
-          <Text style={styles.sectionTitle}>난이도별 단어</Text>
-          <View style={styles.levelStats}>
-            <View style={styles.levelStat}>
-              <View style={[styles.levelDot, { backgroundColor: levelColors.easy }]} />
-              <Text style={styles.levelLabel}>쉬움</Text>
-              <Text style={styles.levelCount}>{wordStats.easy}개</Text>
-            </View>
-            <View style={styles.levelStat}>
-              <View style={[styles.levelDot, { backgroundColor: levelColors.medium }]} />
-              <Text style={styles.levelLabel}>보통</Text>
-              <Text style={styles.levelCount}>{wordStats.medium}개</Text>
-            </View>
-            <View style={styles.levelStat}>
-              <View style={[styles.levelDot, { backgroundColor: levelColors.hard }]} />
-              <Text style={styles.levelLabel}>어려움</Text>
-              <Text style={styles.levelCount}>{wordStats.hard}개</Text>
-            </View>
+        {/* 빠른 액션 */}
+        <View style={styles.actionSection}>
+          <Text style={styles.sectionTitle}>빠른 액션</Text>
+          <View style={styles.actionButtons}>
+            <Button
+              title="퀴즈 시작"
+              onPress={() => navigation.navigate('Quiz')}
+              icon="play-circle"
+              size="large"
+              style={styles.actionButton}
+            />
+            <Button
+              title="단어장 보기"
+              onPress={() => navigation.navigate('WordList')}
+              icon="book-outline"
+              variant="outline"
+              size="large"
+              style={styles.actionButton}
+            />
           </View>
-        </View>
-
-        {/* 빠른 액션 버튼 */}
-        <View style={styles.actionButtons}>
-          <TouchableOpacity style={styles.actionButton} onPress={handleStartQuiz}>
-            <Ionicons name="play-circle" size={32} color="#FFFFFF" />
-            <Text style={styles.actionButtonText}>퀴즈 시작</Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity style={styles.actionButton} onPress={handleViewAllWords}>
-            <Ionicons name="book-outline" size={32} color="#FFFFFF" />
-            <Text style={styles.actionButtonText}>단어장 보기</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* 추가 액션 버튼 */}
-        <View style={styles.actionButtons}>
-          <TouchableOpacity 
-            style={[styles.actionButton, styles.secondaryButton]} 
-            onPress={() => navigation.navigate('WrongAnswers')}
-          >
-            <Ionicons name="close-circle-outline" size={32} color="#FFFFFF" />
-            <Text style={styles.actionButtonText}>오답노트</Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity 
-            style={[styles.actionButton, styles.secondaryButton]} 
-            onPress={() => navigation.navigate('Stats')}
-          >
-            <Ionicons name="stats-chart-outline" size={32} color="#FFFFFF" />
-            <Text style={styles.actionButtonText}>학습 통계</Text>
-          </TouchableOpacity>
+          <View style={styles.actionButtons}>
+            <Button
+              title="오답노트"
+              onPress={() => navigation.navigate('WrongAnswers')}
+              icon="close-circle-outline"
+              variant="secondary"
+              style={styles.actionButton}
+            />
+            <Button
+              title="학습 통계"
+              onPress={() => navigation.navigate('Stats')}
+              icon="stats-chart-outline"
+              variant="secondary"
+              style={styles.actionButton}
+            />
+          </View>
         </View>
 
         {/* 북마크된 단어 */}
         {bookmarkedWords.length > 0 && (
-          <View style={styles.section}>
+          <Card variant="default" style={styles.section}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>북마크된 단어</Text>
-              <TouchableOpacity onPress={handleViewAllWords}>
-                <Text style={styles.seeAllText}>전체보기</Text>
-              </TouchableOpacity>
+              <Button
+                title="전체보기"
+                onPress={() => navigation.navigate('WordList')}
+                variant="ghost"
+                size="small"
+              />
             </View>
-            {bookmarkedWords.map((word) => (
-              <View key={word.id} style={styles.wordItem}>
-                <View style={styles.wordInfo}>
-                  <Text style={styles.wordEnglish}>{word.english}</Text>
-                  <Text style={styles.wordKorean}>{word.korean}</Text>
-                </View>
-                <View style={[styles.levelBadge, { backgroundColor: levelColors[word.level] }]}>
-                  <Text style={styles.levelBadgeText}>{getLevelText(word.level)}</Text>
-                </View>
-              </View>
+            {bookmarkedWords.slice(0, 3).map((word) => (
+              <WordCard
+                key={word.id}
+                word={word}
+                onPress={() => navigation.navigate('WordList')}
+                onBookmarkPress={(wordId) => useAppStore.getState().toggleBookmark(wordId)}
+                showExample={false}
+                compact={true}
+                isBookmarked={true}
+              />
             ))}
-          </View>
+          </Card>
         )}
 
-        {/* 최근 학습한 단어 */}
-        {recentWords.length > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>최근 학습한 단어</Text>
-            {recentWords.map((word) => (
-              <View key={word.id} style={styles.wordItem}>
-                <View style={styles.wordInfo}>
-                  <Text style={styles.wordEnglish}>{word.english}</Text>
-                  <Text style={styles.wordKorean}>{word.korean}</Text>
-                  <Text style={styles.studyInfo}>
-                    {word.studyCount}회 학습 • {new Date(word.lastStudied!).toLocaleDateString()}
-                  </Text>
-                </View>
-                <View style={[styles.levelBadge, { backgroundColor: levelColors[word.level] }]}>
-                  <Text style={styles.levelBadgeText}>{getLevelText(word.level)}</Text>
-                </View>
-              </View>
+        {/* 오답 단어 */}
+        {wrongAnswerWords.length > 0 && (
+          <Card variant="default" style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>틀린 단어</Text>
+              <Button
+                title="오답노트 보기"
+                onPress={() => navigation.navigate('WrongAnswers')}
+                variant="ghost"
+                size="small"
+              />
+            </View>
+            {wrongAnswerWords.slice(0, 3).map((word) => (
+              <WordCard
+                key={word.id}
+                word={word}
+                onPress={() => navigation.navigate('WordList')}
+                onBookmarkPress={(wordId) => useAppStore.getState().toggleBookmark(wordId)}
+                showExample={false}
+                compact={true}
+                isBookmarked={bookmarkedWords.some(w => w.id === word.id)}
+              />
             ))}
-          </View>
+          </Card>
         )}
       </ScrollView>
     </SafeAreaView>
@@ -224,6 +267,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F2F2F7',
   },
+  
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -231,86 +275,149 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 16,
   },
+  
+  greeting: {
+    fontSize: 16,
+    color: '#8E8E93',
+    marginBottom: 4,
+  },
+  
   title: {
     fontSize: 28,
-    fontWeight: 'bold',
+    fontWeight: '700',
     color: '#000000',
   },
+  
   settingsButton: {
-    padding: 4,
+    width: 44,
+    height: 44,
   },
-  statsCard: {
-    backgroundColor: '#FFFFFF',
-    marginHorizontal: 16,
+  
+  wordOfTheDayCard: {
+    marginHorizontal: 20,
     marginBottom: 16,
-    borderRadius: 12,
-    padding: 20,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 5,
   },
-  statsTitle: {
+  
+  wordOfTheDayHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  
+  wordOfTheDayTitle: {
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: '600',
+    color: '#000000',
+    marginLeft: 8,
+  },
+  
+  progressCard: {
+    marginHorizontal: 20,
+    marginBottom: 16,
+  },
+  
+  progressBar: {
+    height: 8,
+    backgroundColor: '#E5E5EA',
+    borderRadius: 4,
+    marginVertical: 12,
+    overflow: 'hidden',
+  },
+  
+  progressFill: {
+    height: '100%',
+    backgroundColor: '#34C759',
+    borderRadius: 4,
+  },
+  
+  progressText: {
+    fontSize: 14,
+    color: '#666666',
+    textAlign: 'center',
+  },
+  
+  statsCard: {
+    marginHorizontal: 20,
+    marginBottom: 16,
+  },
+  
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: '600',
     color: '#000000',
     marginBottom: 16,
   },
+  
   statsGrid: {
     flexDirection: 'row',
     justifyContent: 'space-around',
   },
+  
   statItem: {
     alignItems: 'center',
+    flex: 1,
   },
+  
   statNumber: {
     fontSize: 24,
-    fontWeight: 'bold',
-    color: '#007AFF',
-  },
-  statLabel: {
-    fontSize: 14,
-    color: '#8E8E93',
-    marginTop: 4,
-  },
-  levelStatsCard: {
-    backgroundColor: '#FFFFFF',
-    marginHorizontal: 16,
-    marginBottom: 16,
-    borderRadius: 12,
-    padding: 20,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 5,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: '700',
     color: '#000000',
+    marginTop: 8,
+    marginBottom: 4,
+  },
+  
+  statLabel: {
+    fontSize: 12,
+    color: '#8E8E93',
+    textAlign: 'center',
+  },
+  
+  actionSection: {
+    marginHorizontal: 20,
     marginBottom: 16,
   },
-  levelStats: {
+  
+  actionButtons: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
+    gap: 12,
+    marginBottom: 12,
   },
-  levelStat: {
+  
+  actionButton: {
+    flex: 1,
+  },
+  
+  section: {
+    marginHorizontal: 20,
+    marginBottom: 16,
+  },
+  
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
+    marginBottom: 12,
   },
-  levelDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
+  
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 40,
+  },
+  
+  errorTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#000000',
+    marginTop: 16,
     marginBottom: 8,
   },
+  
+  errorMessage: {
+    fontSize: 16,
+    color: '#666666',
+    textAlign: 'center',
   levelLabel: {
     fontSize: 14,
     color: '#8E8E93',
