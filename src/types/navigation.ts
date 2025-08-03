@@ -7,6 +7,8 @@ export type RootStackParamList = {
   MainTabs: undefined;
   WrongAnswers: undefined;
   Stats: undefined;
+  Settings: undefined;
+  WordForm: { word?: Word };
   WordDetail: { wordId: string };
   QuizResult: { resultId: string };
 };
@@ -41,4 +43,14 @@ export type WrongAnswersScreenProps = NativeStackScreenProps<
 export type StatsScreenProps = NativeStackScreenProps<
   RootStackParamList,
   'Stats'
+>;
+
+export type SettingsScreenProps = NativeStackScreenProps<
+  RootStackParamList,
+  'Settings'
+>;
+
+export type WordFormScreenProps = NativeStackScreenProps<
+  RootStackParamList,
+  'WordForm'
 >; 

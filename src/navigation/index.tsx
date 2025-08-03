@@ -10,6 +10,7 @@ import WordListScreen from '../screens/WordListScreen';
 import QuizScreen from '../screens/QuizScreen';
 import WrongAnswersScreen from '../screens/WrongAnswersScreen';
 import StatsScreen from '../screens/StatsScreen';
+import SettingsScreen from '../screens/SettingsScreen';
 
 // 타입 정의
 export type RootStackParamList = {
@@ -105,6 +106,13 @@ export default function RootNavigator() {
             headerShown: true,
             title: '학습 통계',
             headerBackTitle: '뒤로',
+          }}
+        />
+        <Stack.Screen 
+          name="Settings" 
+          component={SettingsScreen}
+          options={{
+            headerShown: false,
           }}
         />
       </Stack.Navigator>

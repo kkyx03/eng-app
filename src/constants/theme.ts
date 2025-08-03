@@ -1,71 +1,45 @@
 import { Theme } from '../types';
 
-// 라이트 테마
+// Light Theme
 export const lightTheme: Theme = {
-  colors: {
-    primary: '#007AFF',
-    secondary: '#5856D6',
-    background: '#FFFFFF',
-    surface: '#F2F2F7',
-    text: '#000000',
-    textSecondary: '#8E8E93',
-    border: '#C6C6C8',
-    success: '#34C759',
-    error: '#FF3B30',
-    warning: '#FF9500',
-    info: '#5AC8FA',
-  },
-  spacing: {
-    xs: 4,
-    sm: 8,
-    md: 16,
-    lg: 24,
-    xl: 32,
-  },
-  borderRadius: {
-    sm: 4,
-    md: 8,
-    lg: 12,
-  },
+  backgroundColor: '#F2F2F7',
+  cardBackground: '#FFFFFF',
+  textPrimary: '#000000',
+  textSecondary: '#666666',
+  textTertiary: '#8E8E93',
+  borderColor: '#E5E5EA',
+  shadowColor: '#000000',
+  shadowOpacity: 0.1,
+  successColor: '#34C759',
+  errorColor: '#FF3B30',
+  warningColor: '#FF9500',
+  infoColor: '#007AFF',
 };
 
-// 다크 테마
+// Dark Theme
 export const darkTheme: Theme = {
-  colors: {
-    primary: '#0A84FF',
-    secondary: '#5E5CE6',
-    background: '#000000',
-    surface: '#1C1C1E',
-    text: '#FFFFFF',
-    textSecondary: '#8E8E93',
-    border: '#38383A',
-    success: '#30D158',
-    error: '#FF453A',
-    warning: '#FF9F0A',
-    info: '#64D2FF',
-  },
-  spacing: {
-    xs: 4,
-    sm: 8,
-    md: 16,
-    lg: 24,
-    xl: 32,
-  },
-  borderRadius: {
-    sm: 4,
-    md: 8,
-    lg: 12,
-  },
+  backgroundColor: '#000000',
+  cardBackground: '#1C1C1E',
+  textPrimary: '#FFFFFF',
+  textSecondary: '#EBEBF5',
+  textTertiary: '#8E8E93',
+  borderColor: '#38383A',
+  shadowColor: '#000000',
+  shadowOpacity: 0.3,
+  successColor: '#30D158',
+  errorColor: '#FF453A',
+  warningColor: '#FF9F0A',
+  infoColor: '#0A84FF',
 };
 
-// 난이도별 색상
+// Level Colors (works for both themes)
 export const levelColors = {
   easy: '#34C759',
   medium: '#FF9500',
   hard: '#FF3B30',
-};
+} as const;
 
-// 스토리지 키
+// Storage Keys
 export const STORAGE_KEYS = {
   WORDS: 'words',
   QUIZ_RESULTS: 'quiz_results',
@@ -73,4 +47,18 @@ export const STORAGE_KEYS = {
   BOOKMARKS: 'bookmarks',
   THEME: 'theme',
   SETTINGS: 'settings',
-} as const; 
+  NOTIFICATIONS: 'notifications',
+  CUSTOM_WORDS: 'custom_words',
+} as const;
+
+// Theme Types
+export type ThemeMode = 'light' | 'dark' | 'auto';
+
+// Theme Context Type
+export interface ThemeContextType {
+  theme: Theme;
+  themeMode: ThemeMode;
+  isDark: boolean;
+  toggleTheme: () => void;
+  setThemeMode: (mode: ThemeMode) => void;
+} 

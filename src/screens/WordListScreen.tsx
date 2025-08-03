@@ -129,12 +129,12 @@ export default function WordListScreen({ navigation }: WordListScreenProps) {
         onBookmarkedToggle={(show) => setFilterOptions({ showBookmarkedOnly: show })}
       />
 
-      <View style={styles.statsBar}>
-        <Text style={styles.statsText}>
-          총 {filteredWords.length}개 단어
-          {searchText && ` (검색: "${searchText}")`}
-        </Text>
-      </View>
+             <View style={styles.statsBar}>
+         <Text style={styles.statsText}>
+           총 {filteredWords.length}개 단어
+           {searchQuery && ` (검색: "${searchQuery}")`}
+         </Text>
+       </View>
     </View>
   );
 

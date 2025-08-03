@@ -107,7 +107,7 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
           </View>
           <Button
             title=""
-            onPress={handleClearData}
+            onPress={() => navigation.navigate('Settings')}
             variant="ghost"
             icon="settings-outline"
             style={styles.settingsButton}
